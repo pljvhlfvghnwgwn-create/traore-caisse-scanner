@@ -1,0 +1,18 @@
+{
+  "name": "traore-caisse-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Caisse de magasin avec scan des codes-barres — conçu par Aboubacary Traoré",
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/share": "^6.0.0",
+    "@capacitor-mlkit/barcode-scanning": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.0"
+  }
+}

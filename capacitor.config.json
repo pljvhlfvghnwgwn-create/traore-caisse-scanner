@@ -1,0 +1,6 @@
+{
+  "appId": "ci.traore.caissescanner",
+  "appName": "Traoré Caisse Scanner",
+  "webDir": "www",
+  "android": { "backgroundColor": "#0d6b4f" }
+}
