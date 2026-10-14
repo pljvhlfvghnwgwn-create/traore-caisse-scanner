@@ -131,7 +131,10 @@ footer b{color:var(--ink)}
       <div class="eyebrow">Traoré Caisse Scanner</div>
       <h1 id="shopName">Ma Boutique</h1>
     </div>
-    <span class="eyebrow" id="sync">Chargement…</span>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+      <button class="btn sm" id="saveTop" type="button">💾 Sauvegarder</button>
+      <span class="eyebrow" id="sync">Chargement…</span>
+    </div>
   </header>
 
   <nav role="tablist" id="nav">
@@ -271,6 +274,7 @@ footer b{color:var(--ink)}
       <p class="hint">Tout est enregistré sur ce téléphone, même sans internet. La sauvegarde ZIP contient toutes vos données : produits, stock, ventes, clients, dettes, dépenses et réglages. Gardez-la sur WhatsApp, Google Drive ou un ordinateur. Elle permet de tout remettre après une réinstallation ou sur un nouveau téléphone.</p>
       <div class="row-f"><button class="btn sm" id="backupBtn">Créer la sauvegarde ZIP</button><button class="btn ghost sm" id="restoreBtn">Restaurer une sauvegarde</button><input type="file" id="restoreFile" accept=".zip,.json,application/zip,application/json,*/*" hidden></div>
       <p class="hint" id="lastBackup"></p>
+      <div class="row-f" id="lastActs" hidden><button class="btn ghost sm" id="shareLast">Envoyer la dernière sauvegarde (WhatsApp, Drive…)</button></div>
       <div class="card" id="restoreBox" hidden style="background:var(--warn-soft);border-color:var(--warn)">
         <b>Restaurer cette sauvegarde ?</b>
         <div class="lines" id="restoreInfo"></div>
@@ -870,8 +874,13 @@ async function readZip(buf){
   }
   return out;
 }
-function showLastBackup(){const d=LS.get('cs_backup',null);$('#lastBackup').textContent=d?'Dernière sauvegarde : '+dt(d):'Aucune sauvegarde faite pour le moment.'}
-$('#backupBtn').onclick=async()=>{
+function showLastBackup(){
+  const d=LS.get('cs_backup',null),n=LS.get('cs_backup_nom',''),a=LS.get('cs_auto',null);
+  let t=d?'Dernière sauvegarde : '+dt(d)+(NATIVE&&n?' — fichier « '+n+' » dans Documents › Traore Caisse':''):'Aucune sauvegarde faite pour le moment.';
+  if(a)t+=' · Sauvegarde automatique du jour faite ('+dt(a)+').';
+  $('#lastBackup').textContent=t;$('#lastActs').hidden=!d;
+}
+function buildBackup(){
   const now=new Date(),c=S.config;
   const data={app:'traore-caisse-scanner',version:2,date:now.toISOString(),produits:S.produits,ventes:S.ventes,clients:S.clients,depenses:S.depenses,config:S.config};
   const nb=k=>Object.keys(S[k]).length;
@@ -888,8 +897,40 @@ $('#backupBtn').onclick=async()=>{
     {name:'clients-mouvements.csv',data:toCSV(rowsMouv())},
     {name:'depenses.csv',data:toCSV(rowsDepenses())}]);
   const nom='sauvegarde-caisse-'+now.toISOString().slice(0,10)+'-'+String(now.getHours()).padStart(2,'0')+'h'+String(now.getMinutes()).padStart(2,'0')+'.zip';
-  if(await shareFile(nom,zip,'application/zip')){LS.set('cs_backup',data.date);showLastBackup();toast('Sauvegarde ZIP créée')}
-};
+  return{zip,nom,date:data.date};
+}
+const DOSSIER='Traore Caisse';
+let lastZip=null;
+async function writeToPhone(path,zip){
+  const FS=P('Filesystem');if(!FS)return null;
+  try{const p=await FS.checkPermissions();if(p.publicStorage&&p.publicStorage!=='granted')await FS.requestPermissions()}catch{}
+  const r=await FS.writeFile({path,data:await blobB64(zip),directory:'DOCUMENTS',recursive:true});
+  return r.uri;
+}
+async function doBackup(){
+  const b=buildBackup();lastZip=b;
+  if(NATIVE){
+    try{await writeToPhone(DOSSIER+'/'+b.nom,b.zip);LS.set('cs_backup',b.date);LS.set('cs_backup_nom',b.nom);showLastBackup();
+      toast('✔ Sauvegarde enregistrée dans Documents › '+DOSSIER);return}
+    catch(err){toast("Impossible d'écrire dans Documents, choisissez où l'envoyer",true)}
+  }
+  if(await shareFile(b.nom,b.zip,'application/zip')){LS.set('cs_backup',b.date);LS.set('cs_backup_nom',b.nom);showLastBackup();toast('Sauvegarde ZIP créée')}
+}
+$('#backupBtn').onclick=doBackup;$('#saveTop').onclick=doBackup;
+$('#shareLast').onclick=async()=>{const b=lastZip||buildBackup();await shareFile(b.nom,b.zip,'application/zip')};
+/* Sauvegarde automatique chaque jour dans Documents › Traore Caisse › auto (garde les 7 dernières) */
+async function autoBackup(){
+  if(!NATIVE||!Object.keys(S.ventes).length&&!Object.keys(S.clients).length)return;
+  const last=LS.get('cs_auto',null);if(last&&Date.now()-new Date(last).getTime()<20*3600e3)return;
+  try{
+    const b=buildBackup();const d=new Date().toISOString().slice(0,10);
+    await writeToPhone(DOSSIER+'/auto/sauvegarde-auto-'+d+'.zip',b.zip);LS.set('cs_auto',b.date);
+    const FS=P('Filesystem');const l=await FS.readdir({path:DOSSIER+'/auto',directory:'DOCUMENTS'});
+    const names=(l.files||[]).map(f=>typeof f==='string'?f:f.name).filter(n=>/^sauvegarde-auto-.*\.zip$/.test(n)).sort();
+    for(const n of names.slice(0,Math.max(0,names.length-7)))await FS.deleteFile({path:DOSSIER+'/auto/'+n,directory:'DOCUMENTS'}).catch(()=>{});
+    showLastBackup();
+  }catch{}
+}
 let pending=null;
 $('#restoreBtn').onclick=()=>$('#restoreFile').click();
 $('#restoreFile').onchange=async e=>{
@@ -924,7 +965,7 @@ function renderAll(){
   $('#shopName').textContent=S.config.nom||'Ma Boutique';
   renderCart();renderProducts();renderClients();renderReports();
 }
-renderAll();fillCfg();showLastBackup();$('#code').focus();
+renderAll();fillCfg();showLastBackup();$('#code').focus();setTimeout(autoBackup,2500);
 </script>
 </body>
 </html>
