@@ -268,9 +268,15 @@ footer b{color:var(--ink)}
     </form>
     <div class="card">
       <h2>Données</h2>
-      <p class="hint">Tout est enregistré sur ce téléphone, même sans internet. Faites une sauvegarde chaque semaine et gardez-la sur WhatsApp ou Google Drive : elle permet de tout récupérer sur un nouveau téléphone.</p>
-      <div class="row-f"><button class="btn sm" id="backupBtn">Faire une sauvegarde</button><button class="btn ghost sm" id="restoreBtn">Restaurer une sauvegarde</button><input type="file" id="restoreFile" accept=".json,application/json,*/*" hidden></div>
+      <p class="hint">Tout est enregistré sur ce téléphone, même sans internet. La sauvegarde ZIP contient toutes vos données : produits, stock, ventes, clients, dettes, dépenses et réglages. Gardez-la sur WhatsApp, Google Drive ou un ordinateur. Elle permet de tout remettre après une réinstallation ou sur un nouveau téléphone.</p>
+      <div class="row-f"><button class="btn sm" id="backupBtn">Créer la sauvegarde ZIP</button><button class="btn ghost sm" id="restoreBtn">Restaurer une sauvegarde</button><input type="file" id="restoreFile" accept=".zip,.json,application/zip,application/json,*/*" hidden></div>
       <p class="hint" id="lastBackup"></p>
+      <div class="card" id="restoreBox" hidden style="background:var(--warn-soft);border-color:var(--warn)">
+        <b>Restaurer cette sauvegarde ?</b>
+        <div class="lines" id="restoreInfo"></div>
+        <p class="hint" style="color:var(--warn)">Toutes les données actuelles de ce téléphone seront remplacées.</p>
+        <div class="row-f"><button class="btn sm" id="restoreOk">Remplacer mes données</button><button class="btn ghost sm" id="restoreNo">Annuler</button></div>
+      </div>
       <div class="row-f"><button class="btn danger sm" id="delEx">Supprimer les produits d'exemple</button></div>
     </div>
   </section>
@@ -708,19 +714,26 @@ $('#importFile').onchange=async e=>{
     try{await put('produits',safeId(p.code),p);n++}catch{}}
   toast(`${n} produit${n>1?'s':''} importé${n>1?'s':''}`);
 };
+const blobB64=b=>new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=ko;r.readAsDataURL(b)});
 async function shareFile(name,content,mime){
+  const blob=content instanceof Blob?content:new Blob([content],{type:mime});
   const FS=P('Filesystem'),Sh=P('Share');
   if(FS&&Sh){
-    try{const r=await FS.writeFile({path:name,data:content,directory:'CACHE',encoding:'utf8'});await Sh.share({title:name,files:[r.uri],dialogTitle:'Enregistrer ou envoyer'});return true}
+    try{const r=await FS.writeFile({path:name,data:await blobB64(blob),directory:'CACHE'});await Sh.share({title:name,files:[r.uri],dialogTitle:'Enregistrer ou envoyer'});return true}
     catch(err){if(!/cancel/i.test(String(err&&err.message)))toast("L'export a échoué",true);return false}
   }
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();return true;
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();return true;
 }
-async function saveCSV(name,rows){
-  const csv='\uFEFF'+rows.map(r=>r.map(v=>{const s=String(v??'');return/[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\r\n');
-  await shareFile(name,csv,'text/csv');
-}
-$('#exportProd').onclick=()=>saveCSV('catalogue-produits.csv',[['code','nom','prix','prix_achat','stock','categorie','seuil'],...Object.values(S.produits).sort((a,b)=>a.nom.localeCompare(b.nom)).map(p=>[p.code,p.nom,p.prix,p.prixAchat??'',p.stock??'',p.categorie||'',p.seuil??''])]);
+const toCSV=rows=>'\uFEFF'+rows.map(r=>r.map(v=>{const s=String(v??'');return/[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\r\n');
+async function saveCSV(name,rows){await shareFile(name,toCSV(rows),'text/csv')}
+/* Tableaux pour Excel */
+const rowsProduits=()=>[['code','nom','prix','prix_achat','stock','categorie','seuil'],...Object.values(S.produits).sort((a,b)=>a.nom.localeCompare(b.nom)).map(p=>[p.code,p.nom,p.prix,p.prixAchat??'',p.stock??'',p.categorie||'',p.seuil??''])];
+const rowsVentes=list=>{const rows=[['numero','date','produit','quantite','prix_unitaire','montant_ligne','remise_vente','total_vente','paiement','client','annulee']];
+  list.sort((a,b)=>a.date.localeCompare(b.date)).forEach(v=>v.lignes.forEach((l,i)=>rows.push([v.num,dt(v.date),l.nom,l.qte,l.prix,l.qte*l.prix,i?'':v.remise||0,i?'':v.total,modeLabel(v),v.clientNom||'',v.annulee?'oui':''])));return rows};
+const rowsClients=()=>[['nom','telephone','dette'],...Object.values(S.clients).sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>[c.nom,c.tel||'',num(c.dette)])];
+const rowsMouv=()=>{const r=[['client','date','type','montant','vente']];Object.values(S.clients).forEach(c=>(c.mouvements||[]).forEach(m=>r.push([c.nom,dt(m.date),m.type,m.montant,m.vente||''])));return r};
+const rowsDepenses=()=>[['date','motif','montant'],...Object.values(S.depenses).sort((a,b)=>a.date.localeCompare(b.date)).map(d=>[dt(d.date),d.libelle,d.montant])];
+$('#exportProd').onclick=()=>saveCSV('catalogue-produits.csv',rowsProduits());
 
 /* ================= Clients ================= */
 let curCli=null;
@@ -816,9 +829,7 @@ $('#salesList').onclick=e=>{
     }catch{toast("L'annulation a échoué..",true)}
   });
 };
-$('#exportVentes').onclick=()=>{const R=range(period);const rows=[['numero','date','produit','quantite','prix_unitaire','montant_ligne','remise_vente','total_vente','paiement','client','annulee']];
-  Object.values(S.ventes).filter(v=>inR(v.date,R)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(v=>v.lignes.forEach((l,i)=>rows.push([v.num,dt(v.date),l.nom,l.qte,l.prix,l.qte*l.prix,i?'':v.remise||0,i?'':v.total,modeLabel(v),v.clientNom||'',v.annulee?'oui':''])));
-  saveCSV(`ventes-${period}-${new Date().toISOString().slice(0,10)}.csv`,rows)};
+$('#exportVentes').onclick=()=>{const R=range(period);saveCSV(`ventes-${period}-${new Date().toISOString().slice(0,10)}.csv`,rowsVentes(Object.values(S.ventes).filter(v=>inR(v.date,R))))};
 
 /* ================= Réglages ================= */
 function fillCfg(){if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#cfgForm'))return;const c=S.config;$('#g-nom').value=c.nom||'';$('#g-adr').value=c.adresse||'';$('#g-tel').value=c.tel||'';$('#g-msg').value=c.message||'';$('#g-seuil').value=c.seuil??'';$('#g-son').checked=c.son!==false}
@@ -826,22 +837,79 @@ $('#cfgForm').onsubmit=async e=>{e.preventDefault();const c={nom:$('#g-nom').val
 $('#delEx').onclick=e=>{const ex=Object.values(S.produits).filter(p=>p.exemple);if(!ex.length){toast("Il n'y a plus de produits d'exemple");return}confirmBtn(e.currentTarget,`Supprimer ${ex.length} produits ?`,async()=>{for(const p of ex)await del('produits',safeId(p.code)).catch(()=>{});toast('Produits d\'exemple supprimés')})};
 
 /* ================= Sauvegarde ================= */
+/* ZIP sans dépendance : écriture (non compressé) et lecture (stocké ou compressé) */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function makeZip(files){
+  const enc=new TextEncoder(),parts=[],cd=[];let off=0;const d=new Date();
+  const T=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1),D=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
+  for(const f of files){
+    const nm=enc.encode(f.name),da=enc.encode(f.data),crc=crc32(da);
+    const h=new DataView(new ArrayBuffer(30));
+    [[0,0x04034b50,4],[4,20,2],[6,0x0800,2],[8,0,2],[10,T,2],[12,D,2],[14,crc,4],[18,da.length,4],[22,da.length,4],[26,nm.length,2],[28,0,2]].forEach(([o,v,s])=>s===4?h.setUint32(o,v,true):h.setUint16(o,v,true));
+    parts.push(new Uint8Array(h.buffer),nm,da);
+    const c=new DataView(new ArrayBuffer(46));
+    [[0,0x02014b50,4],[4,20,2],[6,20,2],[8,0x0800,2],[10,0,2],[12,T,2],[14,D,2],[16,crc,4],[20,da.length,4],[24,da.length,4],[28,nm.length,2],[42,off,4]].forEach(([o,v,s])=>s===4?c.setUint32(o,v,true):c.setUint16(o,v,true));
+    cd.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+da.length;
+  }
+  const size=cd.reduce((a,x)=>a+x.length,0),e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,size,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cd,new Uint8Array(e.buffer)],{type:'application/zip'});
+}
+async function readZip(buf){
+  const v=new DataView(buf),u=new Uint8Array(buf),out={};let e=-1;
+  for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65600);i--)if(v.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0)throw new Error('zip');
+  let p=v.getUint32(e+16,true);const n=v.getUint16(e+10,true);
+  for(let k=0;k<n;k++){
+    const meth=v.getUint16(p+10,true),csz=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),xl=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true);
+    const name=new TextDecoder().decode(u.subarray(p+46,p+46+nl));
+    const ds=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true);let data=u.subarray(ds,ds+csz);
+    if(meth===8)data=new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    out[name.split('/').pop()]=new TextDecoder().decode(data);p+=46+nl+xl+cl;
+  }
+  return out;
+}
 function showLastBackup(){const d=LS.get('cs_backup',null);$('#lastBackup').textContent=d?'Dernière sauvegarde : '+dt(d):'Aucune sauvegarde faite pour le moment.'}
 $('#backupBtn').onclick=async()=>{
-  const data={app:'traore-caisse-scanner',version:1,date:new Date().toISOString(),produits:S.produits,ventes:S.ventes,clients:S.clients,depenses:S.depenses,config:S.config};
-  const ok=await shareFile('sauvegarde-caisse-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(data),'application/json');
-  if(ok){LS.set('cs_backup',data.date);showLastBackup()}
+  const now=new Date(),c=S.config;
+  const data={app:'traore-caisse-scanner',version:2,date:now.toISOString(),produits:S.produits,ventes:S.ventes,clients:S.clients,depenses:S.depenses,config:S.config};
+  const nb=k=>Object.keys(S[k]).length;
+  const lisez=['SAUVEGARDE TRAORÉ CAISSE SCANNER','Boutique : '+(c.nom||'Ma Boutique'),'Date : '+dt(now.toISOString()),'',
+    `Produits : ${nb('produits')}`,`Ventes : ${nb('ventes')}`,`Clients : ${nb('clients')} (dettes en cours : ${fmt(Object.values(S.clients).reduce((a,x)=>a+num(x.dette),0))})`,`Dépenses : ${nb('depenses')}`,'',
+    'POUR TOUT RESTAURER','Ouvrez l\'application > Réglages > Restaurer une sauvegarde, puis choisissez ce fichier ZIP.','Le fichier donnees-completes.json contient toutes les données. Ne le modifiez pas.','',
+    'Les fichiers .csv s\'ouvrent dans Excel ou Google Sheets pour consulter les données.','','Conçu par Aboubacary Traoré'].join('\r\n');
+  const zip=makeZip([
+    {name:'LISEZMOI.txt',data:lisez},
+    {name:'donnees-completes.json',data:JSON.stringify(data)},
+    {name:'produits.csv',data:toCSV(rowsProduits())},
+    {name:'ventes.csv',data:toCSV(rowsVentes(Object.values(S.ventes)))},
+    {name:'clients.csv',data:toCSV(rowsClients())},
+    {name:'clients-mouvements.csv',data:toCSV(rowsMouv())},
+    {name:'depenses.csv',data:toCSV(rowsDepenses())}]);
+  const nom='sauvegarde-caisse-'+now.toISOString().slice(0,10)+'-'+String(now.getHours()).padStart(2,'0')+'h'+String(now.getMinutes()).padStart(2,'0')+'.zip';
+  if(await shareFile(nom,zip,'application/zip')){LS.set('cs_backup',data.date);showLastBackup();toast('Sauvegarde ZIP créée')}
 };
+let pending=null;
 $('#restoreBtn').onclick=()=>$('#restoreFile').click();
 $('#restoreFile').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
-  let d;try{d=JSON.parse(await f.text())}catch{toast("Ce fichier n'est pas une sauvegarde valide",true);return}
+  let d=null;
+  try{
+    const buf=await f.arrayBuffer(),u=new Uint8Array(buf);
+    const txt=(u[0]===0x50&&u[1]===0x4b)?(await readZip(buf))['donnees-completes.json']:new TextDecoder().decode(u);
+    d=JSON.parse(txt);
+  }catch{}
   if(!d||d.app!=='traore-caisse-scanner'){toast("Ce fichier n'est pas une sauvegarde de Traoré Caisse Scanner",true);return}
-  const btn=$('#restoreBtn');
-  confirmBtn(btn,'Remplacer toutes les données ? Touchez encore',()=>{});
-  btn.onclick=()=>{if(!btn.dataset.armed){$('#restoreFile').click();return}delete btn.dataset.armed;
-    COLS.forEach(c=>{S[c]=d[c]||{};LS.set('cs_'+c,S[c])});S.config=d.config||{};LS.set('cs_config',S.config);
-    btn.textContent='Restaurer une sauvegarde';btn.onclick=()=>$('#restoreFile').click();fillCfg();renderAll();toast('Sauvegarde restaurée ('+dt(d.date)+')')};
+  pending=d;const n=k=>Object.keys(d[k]||{}).length;
+  $('#restoreInfo').innerHTML=`<div class="l"><span>Sauvegarde du</span><b>${dt(d.date)}</b></div><div class="l"><span>Boutique</span><b>${esc((d.config||{}).nom||'Ma Boutique')}</b></div><div class="l"><span>Produits · ventes</span><b>${n('produits')} · ${n('ventes')}</b></div><div class="l"><span>Clients · dépenses</span><b>${n('clients')} · ${n('depenses')}</b></div>`;
+  $('#restoreBox').hidden=false;$('#restoreBox').scrollIntoView({behavior:'smooth',block:'center'});
+};
+$('#restoreNo').onclick=()=>{pending=null;$('#restoreBox').hidden=true};
+$('#restoreOk').onclick=()=>{
+  const d=pending;if(!d)return;
+  COLS.forEach(c=>{S[c]=d[c]||{};LS.set('cs_'+c,S[c])});S.config=d.config||{};LS.set('cs_config',S.config);LS.set('cs_init',true);
+  pending=null;$('#restoreBox').hidden=true;fillCfg();renderAll();toast('Sauvegarde restaurée ('+dt(d.date)+')');
 };
 /* Bouton retour Android : ferme d'abord les fenêtres ouvertes */
 if(P('App'))P('App').addListener('backButton',()=>{
