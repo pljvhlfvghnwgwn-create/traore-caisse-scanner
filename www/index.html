@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="color-scheme" content="light dark">
 <title>Traoré Caisse Scanner</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0d6b4f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
@@ -117,6 +121,12 @@ label{display:flex;flex-direction:column;gap:5px;font:600 13px var(--f-ui);color
 .lines .l b{font-family:var(--f-num)}
 .bar{height:6px;border-radius:3px;background:var(--bg);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.cam{position:fixed;inset:0;background:#000;z-index:25;display:flex;flex-direction:column}
+.cam video{flex:1;min-height:0;width:100%;object-fit:cover}
+.cam .frame{position:absolute;left:10%;right:10%;top:32%;height:22%;border:3px solid #fff;border-radius:14px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
+.cam .frame::after{content:"";position:absolute;left:4%;right:4%;top:50%;height:2px;background:#f05a3c}
+.cam .bar{display:flex;gap:10px;align-items:center;padding:12px 16px calc(14px + env(safe-area-inset-bottom,0px));background:#0b1210;color:#fff}
+.cam .bar .grow{flex:1;min-width:0;font-weight:600}
 .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:30;max-width:calc(100% - 32px);box-sizing:border-box;text-align:center}
 .toast.err{background:var(--danger);color:#fff}
 footer{text-align:center;color:var(--muted);font-size:12px;padding-top:8px}
@@ -157,7 +167,7 @@ footer b{color:var(--ink)}
     </div>
     <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
     <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)" id="contWrap" hidden><input id="cont" type="checkbox" style="width:auto"> Scan en continu (la caméra se rouvre après chaque produit)</label>
-    <p class="hint">Touchez 📷 pour scanner avec la caméra. Astuce : tapez <b>3*</b> devant un code pour ajouter 3 unités.</p>
+    <p class="hint">Touchez 📷 pour scanner avec la caméra (plusieurs produits à la suite, puis « Terminer »). Astuce : tapez <b>3*</b> devant un code pour ajouter 3 unités.</p>
     <div class="held" id="held"></div>
     <div class="list" id="cart"></div>
   </section>
@@ -371,6 +381,11 @@ footer b{color:var(--ink)}
   </div>
 </div>
 
+<div class="cam" id="cam" hidden>
+  <video id="camVideo" playsinline muted></video>
+  <div class="frame"></div>
+  <div class="bar"><div class="grow" id="camMsg">Placez le code-barres dans le cadre</div><button class="btn" id="camClose">Terminer</button></div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -534,7 +549,39 @@ async function nativeScan(){
 async function scanLoop(){
   do{const c=await nativeScan();if(!c)return;handleCode(c);await new Promise(r=>setTimeout(r,350))}while($('#cont').checked);
 }
-$('#camBtn').onclick=()=>{if(NATIVE)scanLoop();else $('#camFile').click()};
+/* Scan caméra en direct dans le navigateur (site web) */
+let camStream=null,camTimer=null,zxCtl=null;
+function loadZXing(){return window.ZXing?Promise.resolve():new Promise(r=>{const s=document.createElement('script');s.src='https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';s.onload=s.onerror=r;document.head.appendChild(s)})}
+function stopLive(){clearInterval(camTimer);camTimer=null;try{zxCtl&&zxCtl.reset()}catch{}zxCtl=null;if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('#cam').hidden=true}
+$('#camClose').onclick=()=>{stopLive();if(tab==='caisse')$('#code').focus()};
+async function liveScan(onCode,continuous){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return false;
+  const v=$('#camVideo');let last='',lastT=0;
+  const got=c=>{if(!c)return;const t=Date.now();if(c===last&&t-lastT<2000)return;last=c;lastT=t;
+    if(navigator.vibrate)navigator.vibrate(60);onCode(c);if(!continuous)stopLive()};
+  $('#camMsg').textContent='Placez le code-barres dans le cadre';$('#cam').hidden=false;
+  try{
+    let det=null;
+    if('BarcodeDetector' in window){try{const f=await BarcodeDetector.getSupportedFormats();if(f&&f.length)det=new BarcodeDetector({formats:f})}catch{}}
+    if(det){
+      camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}},audio:false});
+      v.srcObject=camStream;await v.play();
+      let busy=false;camTimer=setInterval(async()=>{if(busy||v.readyState<2)return;busy=true;try{const r=await det.detect(v);if(r[0])got(r[0].rawValue)}catch{}busy=false},180);
+    }else{
+      await loadZXing();if(!window.ZXing)throw new Error('lib');
+      const reader=new ZXing.BrowserMultiFormatReader();zxCtl=reader;
+      await reader.decodeFromConstraints({video:{facingMode:{ideal:'environment'}}},v,(res)=>{if(res)got(res.getText())});
+      camStream=v.srcObject;
+    }
+    return true;
+  }catch(err){stopLive();toast(/NotAllowed|Permission/i.test(String(err&&err.name||err))?"Autorisez l'accès à la caméra dans le navigateur, puis réessayez.":"Caméra indisponible : prenez une photo du code-barres.",true);return false}
+}
+$('#camBtn').onclick=async()=>{
+  if(NATIVE){scanLoop();return}
+  const ok=await liveScan(c=>{const before=cart.reduce((a,l)=>a+l.qte,0);handleCode(c);const after=cart.reduce((a,l)=>a+l.qte,0);
+    $('#camMsg').textContent=after>before?'✔ '+(cart[0]&&cart[0].nom||c)+' · Total '+fmt(cartTotal()):'Code inconnu : '+c},true);
+  if(!ok)$('#camFile').click();
+};
 $('#camFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;toast('Lecture du code-barres…');const c=await decodeImage(f);if(c)handleCode(c);else{beep(false);toast('Code illisible. Reprenez la photo de plus près, bien éclairée.',true)}};
 
 /* ---------- Paiement ---------- */
@@ -647,7 +694,7 @@ $('#p-cancel').onclick=resetProdForm;
 function updMarge(){const v=num($('#p-prix').value),a=$('#p-achat').value;if(!a||!v){$('#p-marge').value='—';return}const m=v-num(a);$('#p-marge').value=fmt(m)+(v?` (${Math.round(m/v*100)} %)`:'')}
 $('#p-prix').oninput=updMarge;$('#p-achat').oninput=updMarge;
 $('#p-gen').onclick=()=>{let c;do{c='2'+String(Date.now()).slice(-8)+String(Math.floor(Math.random()*1000)).padStart(3,'0')}while(prod(c));$('#p-code').value=c;$('#p-nom').focus()};
-$('#p-scan').onclick=async()=>{if(!NATIVE){$('#pFile').click();return}const c=await nativeScan();if(c){$('#p-code').value=c;$('#p-nom').focus();if(prod(c))toast('Ce code existe déjà : « '+prod(c).nom+' »',true)}};
+$('#p-scan').onclick=async()=>{if(!NATIVE){const ok=await liveScan(c=>{$('#p-code').value=c;$('#p-nom').focus();if(prod(c))toast('Ce code existe déjà : « '+prod(c).nom+' »',true)},false);if(!ok)$('#pFile').click();return}const c=await nativeScan();if(c){$('#p-code').value=c;$('#p-nom').focus();if(prod(c))toast('Ce code existe déjà : « '+prod(c).nom+' »',true)}};
 $('#pFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const c=await decodeImage(f);if(c){$('#p-code').value=c;$('#p-nom').focus();if(prod(c))toast('Ce code existe déjà : « '+prod(c).nom+' »',true)}else toast('Code illisible, tapez-le à la main',true)};
 $('#prodForm').onsubmit=async e=>{
   e.preventDefault();
@@ -954,6 +1001,7 @@ $('#restoreOk').onclick=()=>{
 };
 /* Bouton retour Android : ferme d'abord les fenêtres ouvertes */
 if(P('App'))P('App').addListener('backButton',()=>{
+  if(!$('#cam').hidden){stopLive();return}
   const open=$$('.shade').find(s=>!s.hidden);
   if(open){open.hidden=true;return}
   if(tab!=='caisse'){switchTab('caisse');return}
@@ -966,6 +1014,7 @@ function renderAll(){
   renderCart();renderProducts();renderClients();renderReports();
 }
 renderAll();fillCfg();showLastBackup();$('#code').focus();setTimeout(autoBackup,2500);
+if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
