@@ -209,6 +209,7 @@ footer b{color:var(--ink)}
     <div class="eyebrow" id="prodCount"></div>
     <div class="list" id="prodList"></div>
     <div class="row-f">
+      <button class="btn sm" id="labelsBtn">🏷️ Imprimer des codes-barres</button>
       <button class="btn ghost sm" id="importBtn">Importer un fichier CSV</button>
       <button class="btn ghost sm" id="exportProd">Exporter le catalogue (CSV)</button>
       <input type="file" id="importFile" accept=".csv,text/csv" hidden>
@@ -345,6 +346,25 @@ footer b{color:var(--ink)}
       <div class="rendu" id="pReste"><span>Reste à crédit</span><b>0 FCFA</b></div>
     </div>
     <button class="btn big" id="pValider">Valider la vente</button>
+  </div>
+</div>
+
+<!-- Feuille étiquettes -->
+<div class="shade" id="labShade" hidden>
+  <div class="sheet" role="dialog" aria-label="Étiquettes codes-barres">
+    <div class="sheet-h"><h2>Étiquettes codes-barres</h2><button class="x" data-close="labShade" aria-label="Fermer">×</button></div>
+    <div class="grid2">
+      <label>Format de feuille A4
+        <select id="labFmt"><option value="3">3 étiquettes par ligne (grandes)</option><option value="2">2 étiquettes par ligne (très grandes)</option></select>
+      </label>
+      <label>Filtrer
+        <input id="labSearch" placeholder="Nom ou code…" aria-label="Filtrer les produits">
+      </label>
+    </div>
+    <div class="row-f"><button class="btn ghost sm" id="labAll">Tout cocher</button><button class="btn ghost sm" id="labNone">Tout décocher</button><span class="sub grow" id="labCount" style="text-align:right"></span></div>
+    <div class="list" id="labList" style="max-height:44vh;overflow:auto"></div>
+    <p class="hint">Indiquez combien d'étiquettes vous voulez par produit (Qté). Sur téléphone, l'étiquette s'ouvre ou se partage : ouvrez-la dans Chrome et touchez Imprimer. Sur ordinateur, elle s'ouvre dans un nouvel onglet.</p>
+    <button class="btn big" id="labGo">Préparer les étiquettes</button>
   </div>
 </div>
 
@@ -733,7 +753,7 @@ function renderProducts(){
       <div class="name">${esc(p.nom)}${p.exemple?'<span class="ex">exemple</span>':''}<div class="sub">${p.categorie?esc(p.categorie)+' · ':''}${esc(p.code)}${p.prixAchat!=null?' · achat '+fmt(p.prixAchat):''}</div></div>
       <div class="amt">${fmt(p.prix)}</div>
       <div class="acts">${stockPill(p)}<span style="flex:1"></span>
-        <button class="link" data-a="stock">+ Stock</button><button class="link" data-a="edit">Modifier</button><button class="link red" data-a="del">Supprimer</button></div>
+        <button class="link" data-a="lab">Étiquette</button><button class="link" data-a="stock">+ Stock</button><button class="link" data-a="edit">Modifier</button><button class="link red" data-a="del">Supprimer</button></div>
     </div>`).join(''):`<div class="empty">${all.length?'Aucun produit ne correspond.':'Aucun produit. Ajoutez votre premier produit avec le formulaire ci-dessus.'}</div>`;
 }
 $('#search').oninput=renderProducts;$('#catFilter').onchange=renderProducts;
@@ -741,6 +761,7 @@ $('#stockFilter').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;sto
 $('#prodList').onclick=e=>{
   const b=e.target.closest('button[data-a]');if(!b)return;const code=b.closest('.item').dataset.code;const p=prod(code);if(!p)return;
   if(b.dataset.a==='edit')editProduct(code);
+  if(b.dataset.a==='lab')openLabelsFor(code);
   if(b.dataset.a==='del')confirmBtn(b,'Confirmer ?',()=>del('produits',safeId(code)).then(()=>toast('Produit supprimé')).catch(()=>toast('Échec de la suppression',true)));
   if(b.dataset.a==='stock'){
     const acts=b.closest('.acts');
@@ -785,6 +806,81 @@ const rowsClients=()=>[['nom','telephone','dette'],...Object.values(S.clients).s
 const rowsMouv=()=>{const r=[['client','date','type','montant','vente']];Object.values(S.clients).forEach(c=>(c.mouvements||[]).forEach(m=>r.push([c.nom,dt(m.date),m.type,m.montant,m.vente||''])));return r};
 const rowsDepenses=()=>[['date','motif','montant'],...Object.values(S.depenses).sort((a,b)=>a.date.localeCompare(b.date)).map(d=>[dt(d.date),d.libelle,d.montant])];
 $('#exportProd').onclick=()=>saveCSV('catalogue-produits.csv',rowsProduits());
+
+/* ================= Codes-barres (Code 128) ================= */
+const C128T=["212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213", "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132", "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211", "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313", "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331", "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111", "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214", "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111", "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141", "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141", "114131", "311141", "411131", "211412", "211214", "211232", "2331112"];
+function code128Modules(text){
+  const s=String(text);const vals=[104];
+  for(const ch of s){const c=ch.charCodeAt(0);if(c<32||c>126)throw new Error('caractère non pris en charge : '+ch);vals.push(c-32)}
+  let sum=104;for(let i=1;i<vals.length;i++)sum+=i*vals[i];
+  vals.push(sum%103,106);
+  const w=[];for(const v of vals)for(const ch of C128T[v])w.push(+ch);
+  return w;
+}
+function code128Bars(text){const w=code128Modules(text);let x=0;const bars=[];w.forEach((n,i)=>{if(i%2===0)bars.push({x,w:n});x+=n});return{bars,total:x}}
+function barcodeSVG(code){
+  const{bars,total}=code128Bars(code),Q=10,W=total+2*Q;
+  return `<svg viewBox="0 0 ${W} 100" preserveAspectRatio="none" role="img" aria-label="Code-barres ${esc(code)}">`+bars.map(b=>`<rect x="${b.x+Q}" y="0" width="${b.w}" height="100" fill="#000"/>`).join('')+'</svg>';
+}
+const labSel=new Map();      // code -> {on,qty}
+function labelHTML(p){
+  return `<div class="lab"><div class="name">${esc(p.nom)}</div>${barcodeSVG(p.code)}<div class="num">${esc(p.code)}</div><div class="price">${fmt(p.prix)}</div></div>`;
+}
+function labelsPage(items,cols){
+  const h=cols===3?'38mm':'50mm';
+  const cells=items.flatMap(p=>Array.from({length:p.n},()=>labelHTML(p))).join('');
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Étiquettes codes-barres</title><style>
+@page{size:A4;margin:8mm}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff}
+.tools{display:flex;gap:10px;align-items:center;padding:10px 12px;background:#0d6b4f;color:#fff;font-size:14px}
+.tools button{padding:10px 14px;border:0;border-radius:8px;font-weight:bold;background:#fff;color:#0d6b4f;font-size:15px;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(${cols},1fr)}
+.lab{height:${h};border:.2mm dotted #999;padding:2mm 3mm;display:flex;flex-direction:column;align-items:center;justify-content:space-between;overflow:hidden;break-inside:avoid}
+.name{font-size:8.5pt;font-weight:bold;text-align:center;line-height:1.15;max-height:2.3em;overflow:hidden;width:100%}
+svg{width:100%;height:14mm;display:block}
+.num{font-family:"Courier New",monospace;font-size:7.5pt;letter-spacing:.4px}
+.price{font-size:11pt;font-weight:bold}
+@media print{.tools{display:none}.grid{margin:0}}
+@media screen{body{background:#e9ecea}.grid{background:#fff;width:210mm;max-width:100%;margin:12px auto;padding:8mm}}
+</style></head><body>
+<div class="tools"><button onclick="window.print()">🖨️ Imprimer</button><span>Découpez les étiquettes en suivant les pointillés.</span></div>
+<div class="grid">${cells}</div>
+</body></html>`;
+}
+function selectedLabels(){
+  return [...labSel.entries()].filter(([c,v])=>v.on&&v.qty>0&&prod(c)).map(([c,v])=>({...prod(c),n:Math.min(500,Math.round(v.qty))})).sort((a,b)=>a.nom.localeCompare(b.nom));
+}
+function renderLabList(){
+  const q=$('#labSearch').value.trim().toLowerCase();
+  const list=Object.values(S.produits).filter(p=>!q||p.nom.toLowerCase().includes(q)||String(p.code).includes(q)).sort((a,b)=>a.nom.localeCompare(b.nom));
+  $('#labList').innerHTML=list.length?list.map(p=>{const v=labSel.get(p.code)||{on:false,qty:1};return `<div class="item" data-code="${esc(p.code)}" style="grid-template-columns:auto 1fr auto;align-items:center">
+    <input type="checkbox" class="lc" ${v.on?'checked':''} style="width:auto" aria-label="Choisir ${esc(p.nom)}">
+    <div class="name">${esc(p.nom)}<div class="sub">${esc(p.code)}</div></div>
+    <label style="flex-direction:row;align-items:center;gap:6px;font-size:12px">Qté<input type="number" class="lq" min="0" max="500" value="${v.qty}" style="width:70px;padding:6px" aria-label="Nombre d'étiquettes"></label></div>`}).join('')
+    :'<div class="empty">Aucun produit.</div>';
+  const sel=selectedLabels();const n=sel.reduce((a,p)=>a+p.n,0);
+  $('#labCount').textContent=n?`${n} étiquette${n>1?'s':''} · ${sel.length} produit${sel.length>1?'s':''}`:'Aucun produit choisi';
+  $('#labGo').disabled=!n;
+}
+$('#labelsBtn').onclick=()=>{labSel.clear();$('#labSearch').value='';renderLabList();$('#labShade').hidden=false};
+function openLabelsFor(code){labSel.clear();labSel.set(code,{on:true,qty:10});$('#labSearch').value='';renderLabList();$('#labShade').hidden=false}
+$('#labSearch').oninput=renderLabList;
+$('#labList').addEventListener('change',e=>{const row=e.target.closest('.item[data-code]');if(!row)return;const c=row.dataset.code;const v=labSel.get(c)||{on:false,qty:1};if(e.target.classList.contains('lc'))v.on=e.target.checked;labSel.set(c,v);renderLabList()});
+$('#labList').addEventListener('input',e=>{if(!e.target.classList.contains('lq'))return;const row=e.target.closest('.item[data-code]');const c=row.dataset.code;const v=labSel.get(c)||{on:false,qty:1};v.qty=Math.max(0,Math.round(num(e.target.value)));if(v.qty>0)v.on=true;labSel.set(c,v);const cb=row.querySelector('.lc');if(cb)cb.checked=v.on;
+  const sel=selectedLabels();const n=sel.reduce((a,p)=>a+p.n,0);$('#labCount').textContent=n?`${n} étiquette${n>1?'s':''} · ${sel.length} produit${sel.length>1?'s':''}`:'Aucun produit choisi';$('#labGo').disabled=!n});
+$('#labAll').onclick=()=>{Object.values(S.produits).forEach(p=>{const v=labSel.get(p.code)||{qty:1};labSel.set(p.code,{on:true,qty:v.qty||1})});renderLabList()};
+$('#labNone').onclick=()=>{labSel.forEach(v=>v.on=false);renderLabList()};
+$('#labGo').onclick=async()=>{
+  const items=selectedLabels();if(!items.length){toast('Choisissez au moins un produit',true);return}
+  let html;try{html=labelsPage(items,+$('#labFmt').value)}catch(err){toast(String(err.message||err),true);return}
+  const nom='etiquettes-codes-barres-'+new Date().toISOString().slice(0,10)+'.html';
+  if(NATIVE){await shareFile(nom,html,'text/html');return}
+  const url=URL.createObjectURL(new Blob([html],{type:'text/html'}));
+  const w=window.open(url,'_blank');
+  if(!w){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+};
 
 /* ================= Clients ================= */
 let curCli=null;
