@@ -1,0 +1,137 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guide d'utilisation — Traoré Caisse Scanner</title>
+<style>
+body{font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#15211c;background:#fff;max-width:760px;margin:0 auto;padding:24px 16px 60px}
+h1{color:#0d6b4f;font-size:26px;line-height:1.2} h2{color:#0d6b4f;margin-top:2em;padding-top:.6em;border-top:1px solid #d6ddd8;font-size:20px}
+table{border-collapse:collapse;width:100%;font-size:15px} th,td{border:1px solid #d6ddd8;padding:8px 10px;text-align:left;vertical-align:top} th{background:#dcefe7}
+li{margin:.25em 0} @media print{h2{break-after:avoid} table,li{break-inside:avoid}}
+</style></head><body><h1>Guide d'utilisation — Traoré Caisse Scanner</h1>
+<p>Version 1.1 · novembre 2026 · conçu par Aboubacary Traoré</p>
+<p>Traoré Caisse Scanner est la caisse de votre magasin : vous scannez les produits, l'application calcule le total, enregistre la vente, met le stock à jour et suit vos clients à crédit. Elle s'utilise sur le site <strong>traore-caisse-scanner.pages.dev</strong> ou avec l'application Android (APK).</p>
+<h2>Premiers réglages</h2>
+<p>À faire une seule fois, avant la première vente.</p>
+<ol>
+<li>Ouvrez l'onglet <strong>Réglages</strong>.</li>
+<li>Écrivez le nom de la boutique, l'adresse et le téléphone. Ils s'impriment en haut de chaque reçu.</li>
+<li>Touchez <strong>Enregistrer</strong>.</li>
+<li>Touchez <strong>Supprimer les produits d'exemple</strong>, puis encore une fois pour confirmer. Le riz, l'huile et les autres produits de démonstration disparaissent.</li>
+</ol>
+<p>Sur le site, vous pouvez installer la caisse comme une application : dans Chrome, menu ⋮ › <strong>Ajouter à l'écran d'accueil</strong>.</p>
+<h2>Ajouter un produit et son code-barres</h2>
+<p>Onglet <strong>Produits</strong>, formulaire <strong>Nouveau produit</strong>.</p>
+<ol>
+<li><strong>Code-barres</strong> :<ul>
+<li>le produit a déjà un code sur son emballage → touchez <strong>📷 Scanner</strong> et visez le code ;</li>
+<li>le produit n'en a pas (vrac, fait maison) → touchez <strong>Générer</strong> : l'application crée un numéro unique.</li>
+</ul>
+</li>
+<li>Écrivez le <strong>nom du produit</strong> et le <strong>prix de vente</strong>.</li>
+<li>Conseillé : le <strong>prix d'achat</strong> (pour calculer le bénéfice), le <strong>stock actuel</strong> et le seuil <strong>Alerte si stock ≤</strong>.</li>
+<li>Touchez <strong>Enregistrer le produit</strong>.</li>
+<li>Code généré à l'étape 1 : sur la ligne du produit, touchez <strong>Étiquette</strong>, indiquez la quantité, puis <strong>Préparer les étiquettes</strong> › <strong>Imprimer</strong>. Collez les étiquettes sur les produits.</li>
+</ol>
+<p>Pour imprimer les étiquettes de plusieurs produits à la fois, utilisez <strong>🏷️ Imprimer des codes-barres</strong> sous la liste. Le format « 3 étiquettes par ligne » est le plus sûr au scan.</p>
+<p>Pour corriger un produit : <strong>Modifier</strong> sur sa ligne. Pour importer une liste depuis Excel : <strong>Importer un fichier CSV</strong>, avec les colonnes code ; nom ; prix ; prix_achat ; stock ; catégorie.</p>
+<h2>Faire une vente</h2>
+<ol>
+<li>Ouvrez l'onglet <strong>Caisse</strong>.</li>
+<li>Ajoutez les produits :<ul>
+<li>avec un lecteur de code-barres (USB ou Bluetooth) : scannez, le produit s'ajoute tout seul ;</li>
+<li>avec la caméra : touchez <strong>📷</strong>, scannez les produits l'un après l'autre, puis <strong>Terminer</strong> ;</li>
+<li>à la main : tapez le nom (par exemple « riz ») ou le code, puis <strong>Ajouter</strong>. Tapez <strong>3</strong>* devant un code pour en ajouter 3.</li>
+</ul>
+</li>
+<li>Ajustez avec <strong>+</strong> et <strong>−</strong>, <strong>Changer le prix</strong> ou <strong>Retirer</strong>. Le total s'affiche en bas.</li>
+<li>Touchez <strong>Encaisser</strong>. Ajoutez une remise si besoin, en FCFA ou en %.</li>
+<li>Choisissez le paiement :<ul>
+<li><strong>Espèces</strong> : saisissez le montant reçu ou touchez un montant rapide, la monnaie à rendre s'affiche ;</li>
+<li><strong>Mobile Money</strong> : Orange Money, MTN MoMo, Moov Money ou Wave, avec la référence si vous voulez ;</li>
+<li><strong>Crédit client</strong> : choisissez le client (ou <strong>+ Nouveau client</strong>) et l'acompte éventuel.</li>
+</ul>
+</li>
+<li>Touchez <strong>Valider la vente</strong>. Le reçu s'affiche : <strong>Partager le reçu</strong> ou <strong>Envoyer par WhatsApp</strong>.</li>
+</ol>
+<p>Un client attend pendant qu'un autre cherche son argent ? Touchez <strong>Attente</strong> : le panier est mis de côté et se reprend d'un toucher.</p>
+<p>Un code n'est pas reconnu ? L'application propose <strong>Créer ce produit</strong>.</p>
+<h2>Clients et ventes à crédit</h2>
+<ul>
+<li>L'onglet <strong>Clients</strong> affiche en haut le total des crédits à encaisser.</li>
+<li><strong>Ajouter le client</strong> : nom et téléphone. Un client peut aussi être créé pendant une vente à crédit.</li>
+<li>Touchez un client pour voir ce qu'il doit et l'historique de ses achats et versements.</li>
+<li>Il rembourse : saisissez le montant, puis <strong>Encaisser</strong>.</li>
+<li><strong>Rappel WhatsApp</strong> prépare un message poli avec le montant dû.</li>
+<li>Un client ne peut être supprimé que si sa dette est à zéro.</li>
+</ul>
+<h2>Gérer le stock</h2>
+<ul>
+<li>Chaque vente retire les quantités du stock. Une vente annulée les remet.</li>
+<li>Dans <strong>Produits</strong>, une pastille donne l'état : verte (en stock), orange (stock bas), rouge (rupture). Le chiffre rouge sur l'onglet <strong>Produits</strong> indique combien de produits sont à réapprovisionner.</li>
+<li>Les filtres <strong>Stock bas</strong> et <strong>Rupture</strong> donnent la liste des achats à faire.</li>
+<li>Marchandise reçue : touchez <strong>+ Stock</strong> sur la ligne du produit, saisissez la quantité reçue (et le nouveau prix d'achat s'il a changé), puis <strong>Ajouter</strong>.</li>
+<li>La valeur du stock, au prix d'achat, s'affiche au-dessus de la liste.</li>
+</ul>
+<h2>Rapports, dépenses et caisse du soir</h2>
+<p>Onglet <strong>Rapports</strong>. Choisissez la période : Aujourd'hui, Hier, 7 jours, Ce mois ou Tout.</p>
+<ul>
+<li><strong>Chiffres</strong> : chiffre d'affaires, bénéfice brut, bénéfice net (après dépenses), nombre de ventes, panier moyen, répartition par mode de paiement, meilleures ventes. Le bénéfice n'est exact que si les prix d'achat sont renseignés.</li>
+<li><strong>Dépenses</strong> : notez le transport, l'électricité, les sachets… (motif et montant, puis <strong>Ajouter</strong>).</li>
+<li><strong>Caisse du jour</strong> : le montant qui doit être dans le tiroir le soir, soit ventes en espèces + versements des clients − dépenses. Comptez la caisse et comparez, sans le fond de caisse.</li>
+<li><strong>Historique des ventes</strong> : <strong>Voir le reçu</strong> ou <strong>Annuler la vente</strong>. Le stock et la dette du client sont corrigés automatiquement.</li>
+<li><strong>Exporter (CSV)</strong> ouvre les ventes de la période dans Excel ou Google Sheets.</li>
+</ul>
+<h2>Sauvegarder et restaurer ses données</h2>
+<p>Vos données sont enregistrées sur l'appareil, pas sur internet. Si le téléphone est perdu ou cassé, ou si l'application est désinstallée, seule une sauvegarde permet de tout récupérer.</p>
+<ol>
+<li>Touchez <strong>💾 Sauvegarder</strong>, en haut de l'écran. Un fichier ZIP est créé avec les produits, le stock, les ventes, les clients, les dettes, les dépenses, les réglages et des tableaux Excel.<ul>
+<li>Application Android : le fichier va dans <strong>Mes fichiers › Documents › Traore Caisse</strong>. Une sauvegarde automatique est aussi faite chaque jour dans <strong>Traore Caisse › auto</strong> (les 7 dernières sont gardées).</li>
+<li>Site web : le fichier arrive dans <strong>Téléchargements</strong>. Un rappel orange s'affiche si vous n'avez pas sauvegardé depuis 7 jours.</li>
+</ul>
+</li>
+<li>Au moins une fois par semaine, envoyez une copie hors du téléphone : WhatsApp à vous-même ou Google Drive.</li>
+<li>Pour restaurer (nouveau téléphone, réinstallation) : <strong>Réglages › Restaurer une sauvegarde</strong>, choisissez le ZIP, vérifiez le résumé, puis <strong>Remplacer mes données</strong>.</li>
+</ol>
+<p>Attention : la restauration remplace toutes les données présentes sur l'appareil.</p>
+<p>Le site et l'application Android ne partagent pas leurs données. Utilisez l'un des deux au magasin, ou passez de l'un à l'autre avec une sauvegarde.</p>
+<h2>Problèmes fréquents</h2>
+<table>
+<thead>
+<tr>
+<th>Problème</th>
+<th>Solution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>La caméra ne s'ouvre pas sur le site</td>
+<td>Autorisez la caméra : touchez le cadenas à gauche de l'adresse › Autorisations, puis réessayez. Sinon, l'application propose de photographier le code.</td>
+</tr>
+<tr>
+<td>Application Android : « Installation du scanner en cours »</td>
+<td>Le premier scan télécharge le module Google. Restez connecté à internet une minute et réessayez.</td>
+</tr>
+<tr>
+<td>Un code-barres n'est pas lu</td>
+<td>Bonne lumière, code bien à plat, à 10–20 cm. Sinon, tapez le numéro écrit sous les barres.</td>
+</tr>
+<tr>
+<td>« Code inconnu »</td>
+<td>Le produit n'est pas dans le catalogue : touchez <strong>Créer ce produit</strong>.</td>
+</tr>
+<tr>
+<td>Le bénéfice paraît trop élevé</td>
+<td>Ajoutez le prix d'achat des produits (Produits › Modifier).</td>
+</tr>
+<tr>
+<td>Une vente est fausse</td>
+<td>Rapports › Historique › <strong>Annuler la vente</strong>, puis refaites-la.</td>
+</tr>
+<tr>
+<td>Message « mémoire pleine »</td>
+<td>Faites tout de suite une sauvegarde ZIP, puis libérez de l'espace sur le téléphone.</td>
+</tr>
+<tr>
+<td>Nouveau téléphone</td>
+<td>Installez l'application, puis Réglages › <strong>Restaurer une sauvegarde</strong>.</td>
+</tr>
+</tbody>
+</table></body></html>
